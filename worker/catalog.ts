@@ -1192,6 +1192,17 @@ export class DriveCatalog extends DurableObject<Env> {
     return safeEqual(passwordHash, row.password_hash);
   }
 
+  async changePassword(username: string, oldPassword: string, newPassword: string): Promise<void> {
+    const row = this.ctx.storage.sql.exec<{username:string;password_hash:string;password_salt:string}>('SELECT username,password_hash,password_salt FROM admin WHERE id=1').toArray()[0];
+    assert(row,'管理员尚未初始化',409);
+    assert(row.username === username,'用户名不匹配',403);
+    const oldHash = await sha256(`${oldPassword}:${row.password_salt}`);
+    assert(await safeEqual(oldHash, row.password_hash),'当前密码不正确',401);
+    const salt = crypto.randomUUID();
+    const newHash = await sha256(`${newPassword}:${salt}`);
+    this.ctx.storage.sql.exec('UPDATE admin SET password_hash=?,password_salt=? WHERE id=1',newHash,salt);
+  }
+
   getAudit(): AuditEntry[] { return this.ctx.storage.sql.exec<{id:number;action:string;detail:string;created_at:number}>('SELECT * FROM audit ORDER BY id DESC LIMIT 200').toArray().map((row) => ({id:row.id,action:row.action,detail:row.detail,createdAt:row.created_at})); }
 
   private hasActiveJobs(): boolean {

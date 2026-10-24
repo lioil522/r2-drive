@@ -199,6 +199,14 @@ async function api(request: Request, env: Env): Promise<Response> {
     return fileResponse(request,file,catalog,token.preview);
   }
   assert(await isAuthenticated(request,env,(await catalog.getAdminCredentials())?.passwordHash),'请先登录网盘',401);
+  if (path==='/api/password' && method==='POST') {
+    const input=await body(request,z.object({oldPassword:z.string().max(1000),newPassword:z.string().min(12).max(1000)}));
+    const cred=await catalog.getAdminCredentials();assert(cred,'管理员数据缺失',500);
+    assert(await catalog.rateLimit(`password:${request.headers.get('CF-Connecting-IP') || 'local'}`,10,15*60*1000),'操作过于频繁，请 15 分钟后重试',429);
+    await catalog.changePassword(cred.username,input.oldPassword,input.newPassword);
+    const updated=await catalog.getAdminCredentials();assert(updated,'管理员数据缺失',500);
+    return json({ok:true,username:updated.username},200,{'Set-Cookie':sessionCookie(request,await createSession(env,updated.username,updated.passwordHash))});
+  }
   if (method==='GET') {
     if (path==='/api/status') return json(await catalog.status());
     if (path==='/api/dashboard') return json(await catalog.dashboard());

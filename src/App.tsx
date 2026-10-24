@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { AlertTriangle, ArrowUpDown, Clock3, Database, FolderOpen, LayoutDashboard, Link2, LogOut, Menu, Moon, Server, ShieldCheck, Star, Sun, Trash2, UploadCloud, X, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, ArrowUpDown, Clock3, Database, FolderOpen, KeyRound, LayoutDashboard, Link2, LogOut, Menu, Moon, Server, ShieldCheck, Star, Sun, Trash2, UploadCloud, X, type LucideIcon } from 'lucide-react';
 import { api } from './api';
 import { ToastContext, navigate, useHashRoute } from './hooks';
 import { Button, IconButton, Loading, Logo } from './components/ui';
@@ -14,6 +14,7 @@ import Login from './pages/Login';
 import PublicShare from './pages/PublicShare';
 import AccountForm from './components/AccountForm';
 import UploadDialog from './components/UploadDialog';
+import ChangePasswordDialog from './components/ChangePasswordDialog';
 
 interface SessionInfo { authenticated: boolean; secretReady: boolean; initialized: boolean; appName: string; username: string }
 interface ToastItem { id: string; message: string; type: 'success' | 'error' | 'info' }
@@ -65,6 +66,7 @@ function Shell({ route, session, onLogout, dark, onToggleDark }: { route: string
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [upload, setUpload] = useState<{ parent: string; bucketId?: string } | null>(null);
   const [addingAccount, setAddingAccount] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const toast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -96,7 +98,7 @@ function Shell({ route, session, onLogout, dark, onToggleDark }: { route: string
         <aside className={`app-sidebar ${navOpen ? 'open' : ''}`}>
           <div className="sidebar-head"><button className="sidebar-brand" onClick={() => go('overview')}><Logo/></button><IconButton icon={X} label="关闭菜单" className="sidebar-close" onClick={() => setNavOpen(false)}/></div>
           <nav className="sidebar-nav">{groups.map((group) => <div className="nav-group" key={group.label}><span className="nav-label">{group.label}</span>{group.items.map(({ id, label, icon: Icon }) => <button key={id} className={`nav-link ${activeKey === id || (id !== 'overview' && pathname.startsWith(`${id}/`)) ? 'active' : ''}`} onClick={() => go(id)}><Icon size={18}/><span>{label}</span></button>)}</div>)}</nav>
-          <div className="sidebar-foot"><button type="button" className="theme-toggle" onClick={onToggleDark} aria-label={dark ? '切换到浅色模式' : '切换到暗色模式'}>{dark ? <Sun size={16}/> : <Moon size={16}/>}<span>{dark ? '浅色模式' : '暗色模式'}</span></button><div className="user-chip"><span><ShieldCheck size={17}/></span><div><strong>{session.username || '管理员'}</strong><small>{session.appName}</small></div><IconButton icon={LogOut} label="退出登录" onClick={() => void logout()}/></div><p>凭据加密 · 文件私有</p></div>
+          <div className="sidebar-foot"><button type="button" className="theme-toggle" onClick={onToggleDark} aria-label={dark ? '切换到浅色模式' : '切换到暗色模式'}>{dark ? <Sun size={16}/> : <Moon size={16}/>}<span>{dark ? '浅色模式' : '暗色模式'}</span></button><div className="user-chip"><span><ShieldCheck size={17}/></span><div><strong>{session.username || '管理员'}</strong><small>{session.appName}</small></div><IconButton icon={KeyRound} label="修改密码" onClick={() => setChangingPassword(true)}/><IconButton icon={LogOut} label="退出登录" onClick={() => void logout()}/></div><p>凭据加密 · 文件私有</p></div>
         </aside>
         {navOpen&&<div className="sidebar-overlay" onClick={() => setNavOpen(false)}/>}
         <div className="app-content">
@@ -107,6 +109,7 @@ function Shell({ route, session, onLogout, dark, onToggleDark }: { route: string
       </div>
       {upload&&<UploadDialog parent={upload.parent} bucketId={upload.bucketId} onClose={() => setUpload(null)}/>}
       {addingAccount&&<AccountForm onClose={() => setAddingAccount(false)}/>}
+      {changingPassword&&<ChangePasswordDialog onClose={() => setChangingPassword(false)} onSuccess={() => { setChangingPassword(false); toast('密码已修改', 'success'); }}/>}
       <div className="toast-stack">{toasts.map((item) => <div key={item.id} className={`toast toast-${item.type}`} role="status"><span>{item.type==='success'?'✓':item.type==='error'?'!':'i'}</span><span className="toast-message">{item.message}</span></div>)}</div>
   </ToastContext.Provider>;
 }
