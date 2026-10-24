@@ -15,7 +15,6 @@
     "DRIVE_ID": "personal",
     "APP_NAME": "R2 Drive"
   },
-  "secrets": { "required": ["ADMIN_PASSWORD", "ENCRYPTION_KEY"] },
   "durable_objects": {
     "bindings": [
       { "name": "CATALOG", "class_name": "DriveCatalog" },
@@ -33,7 +32,6 @@
     "staging": {
       "name": "r2-drive-staging",
       "vars": { "DRIVE_ID": "staging", "APP_NAME": "R2 Drive · Staging" },
-      "secrets": { "required": ["ADMIN_PASSWORD", "ENCRYPTION_KEY"] },
       "durable_objects": {
         "bindings": [
           { "name": "CATALOG", "class_name": "DriveCatalog" },

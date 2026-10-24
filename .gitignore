@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .wrangler/
+.workbuddy/
 .dev.vars
 .env
 .env.*

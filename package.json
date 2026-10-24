@@ -6,7 +6,7 @@
   "scripts": {
     "postinstall": "node scripts/patch-sdk.mjs",
     "dev": "vite --host 127.0.0.1",
-    "dev:api": "wrangler dev --port 8787",
+    "dev:api": "node -e \"require('fs').mkdirSync('dist',{recursive:true})\" && wrangler dev --port 8787",
     "types": "wrangler types",
     "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.worker.json",
     "build": "npm run typecheck && vite build",
