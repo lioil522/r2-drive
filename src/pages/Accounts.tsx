@@ -1,0 +1,28 @@
+import { useContext, useState } from 'react';
+import { ArrowDown, ArrowUp, CheckCircle2, Cloud, Database, KeyRound, Pencil, Plus, Power, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
+import type { Account } from '../../shared/types';
+import { formatBytes } from '../../shared/paths';
+import { api } from '../api';
+import { dateTime, navigate, ToastContext, useAction, useDriveStatus } from '../hooks';
+import { Badge, Button, Card, ConfirmModal, Empty, ErrorBox, IconButton, Loading, Menu, Notice, PageHeader, Progress } from '../components/ui';
+import AccountForm from '../components/AccountForm';
+
+export default function Accounts({onAdd}:{onAdd:()=>void}) {
+  const status=useDriveStatus();
+  const accounts={...status,data:status.data?.accounts};const buckets={data:status.data?.buckets};
+  const [editing,setEditing]=useState<Account|null>(null);const [removing,setRemoving]=useState<Account|null>(null);
+  const {busy,run}=useAction();const toast=useContext(ToastContext);
+  const data=accounts.data||[];
+  const reorder=(index:number,offset:number)=>{const ids=data.map(account=>account.id);[ids[index],ids[index+offset]]=[ids[index+offset],ids[index]];void run(()=>api('/accounts/order',{method:'POST',body:{ids}}),'分配优先级已更新');};
+  return<>
+    <PageHeader eyebrow="CONNECTED ACCOUNTS" title="存储账号" description="连接、排序和管理你的 Cloudflare 账号，为每个账号设置独立容量边界。" actions={<><Button icon={RefreshCw} busy={busy} onClick={()=>void run(async()=>{for(const account of data)if(account.enabled&&account.syncState!=='scanning')await api(`/accounts/${account.id}/sync`,{method:'POST',body:{}});},'容量同步已开始')}>同步全部</Button><Button variant="primary" icon={Plus} onClick={onAdd}>添加账号</Button></>}/>
+    <Notice>上传从优先级最高的账号开始选择。空间不够时会跳到下一个账号；前面的剩余容量仍然保留给后续的小文件。</Notice>
+    {accounts.error&&<ErrorBox message={accounts.error} retry={()=>void accounts.reload()}/>}
+    {accounts.loading&&!accounts.data?<Loading/>:!data.length?<Card><Empty icon={Database} title="让你的存储空间连接起来" description="只需 Account ID 和 R2 API 凭据，就能把账号加入容量池。" action={<Button variant="primary" icon={Plus} onClick={onAdd}>连接第一个账号</Button>}/></Card>:<div className="accounts-list">{data.map((account,index)=>{
+      const owned=(buckets.data||[]).filter(bucket=>bucket.accountId===account.id);
+      return<Card key={account.id} className={`account-card ${!account.enabled?'account-disabled':''}`}><div className="account-card-main"><div className="account-priority"><span>{String(index+1).padStart(2,'0')}</span><div><IconButton icon={ArrowUp} label="提高优先级" disabled={!index||busy} onClick={()=>reorder(index,-1)}/><IconButton icon={ArrowDown} label="降低优先级" disabled={index===data.length-1||busy} onClick={()=>reorder(index,1)}/></div></div><div className="account-avatar"><Cloud size={26}/></div><div className="account-card-info"><div className="account-card-title"><h2>{account.name}</h2><Badge color={account.syncState==='ready'?'green':account.syncState==='error'?'red':'blue'} dot>{account.syncState==='ready'?'已同步':account.syncState==='scanning'?'同步中':account.syncState==='error'?'同步失败':'待同步'}</Badge>{!account.enabled&&<Badge>已停用</Badge>}</div><code>{account.accountId}</code><div className="account-tags"><span><Database size={13}/>{owned.length} 个存储桶</span><span><KeyRound size={13}/>密钥 ···{account.accessKeyHint}</span><span><ShieldCheck size={13}/>{account.hasApiToken?'管理 API 已连接':'文件操作权限'}</span></div></div><div className="account-card-actions"><Button icon={RefreshCw} disabled={account.syncState==='scanning'||busy} onClick={()=>void run(()=>api(`/accounts/${account.id}/sync`,{method:'POST',body:{}}),'容量同步已开始')}>同步容量</Button><Menu items={[{label:'编辑账号',icon:Pencil,action:()=>setEditing(account)},{label:'测试连接',icon:CheckCircle2,action:()=>void run(async()=>{const result=await api<{bucket:string;ok:boolean;error?:string}[]>(`/accounts/${account.id}/test`,{method:'POST',body:{}});if(!result.length)throw new Error('没有已连接的桶，请添加存储桶。');const failed=result.filter(item=>!item.ok);if(failed.length)throw new Error(failed.map(item=>`${item.bucket}: ${item.error}`).join('；'));toast(`${result.length} 个存储桶连接正常`,'success');})},{label:account.enabled?'停用分配':'启用分配',icon:Power,action:()=>void run(()=>api(`/accounts/${account.id}`,{method:'PATCH',body:{enabled:!account.enabled}}),'账号状态已更新')},{label:'移除账号',icon:Trash2,danger:true,action:()=>setRemoving(account)}]}/></div></div><div className="account-capacity"><div><span>已用 <strong>{formatBytes(account.usedBytes)}</strong></span><span>预占 <strong>{formatBytes(account.reservedBytes)}</strong></span><span>安全余量 <strong>{formatBytes(account.safetyBytes)}</strong></span><span>可分配 <strong className="green-text">{formatBytes(account.availableBytes)}</strong></span><span className="capacity-total">上限 {formatBytes(account.quotaBytes)}</span></div><Progress value={(account.usedBytes+account.reservedBytes)/account.quotaBytes*100} color={account.usedBytes/account.quotaBytes>.9?'red':'orange'}/></div><div className="account-card-footer"><span>同步范围：{account.syncCoverage==='account'?'账号内所有可访问存储桶':'指定存储桶'}{account.lastSyncedAt&&` · 上次同步 ${dateTime(account.lastSyncedAt)}`}</span><button className="text-link" onClick={()=>navigate(`buckets?account=${account.id}`)}>查看存储桶 <ArrowDown size={13}/></button></div>{account.lastError&&<div className="account-error">{account.lastError}</div>}</Card>;
+    })}</div>}
+    {editing&&<AccountForm account={editing} onClose={()=>setEditing(null)}/>}
+    {removing&&<ConfirmModal title={`移除 ${removing.name}？`} description="账号中的文件需先迁移或永久删除。移除后，这个账号的凭据和已连接桶将从网盘中删除。" confirm="移除账号" danger busy={busy} onClose={()=>setRemoving(null)} onConfirm={()=>void run(()=>api(`/accounts/${removing.id}`,{method:'DELETE'}),'账号已移除').then(result=>{if(result)setRemoving(null);})}/>}
+  </>;
+}

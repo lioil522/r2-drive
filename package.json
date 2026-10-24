@@ -1,0 +1,40 @@
+{
+  "name": "r2-drive",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "node scripts/patch-sdk.mjs",
+    "dev": "vite --host 127.0.0.1",
+    "dev:api": "wrangler dev --port 8787",
+    "types": "wrangler types",
+    "typecheck": "tsc -p tsconfig.app.json && tsc -p tsconfig.worker.json",
+    "build": "npm run typecheck && vite build",
+    "test": "vitest run",
+    "check:deploy": "wrangler deploy --dry-run",
+    "deploy": "npm run build && wrangler deploy",
+    "secret:password": "wrangler secret put ADMIN_PASSWORD",
+    "secret:encryption": "wrangler secret put ENCRYPTION_KEY"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "latest",
+    "@aws-sdk/s3-request-presigner": "latest",
+    "aws4fetch": "latest",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "latest",
+    "@cloudflare/workers-types": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "vitest": "^4.1.0",
+    "wrangler": "latest"
+  }
+}

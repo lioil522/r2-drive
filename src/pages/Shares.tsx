@@ -1,0 +1,11 @@
+import { useState } from 'react';
+import { Copy, Link2, LockKeyhole, RefreshCw, Share2, Trash2 } from 'lucide-react';
+import type { Share } from '../../shared/types';
+import { api, copyText } from '../api';
+import { dateTime, IDLE_INTERVAL, useAction, useResource } from '../hooks';
+import { Badge, Button, Card, ConfirmModal, Empty, ErrorBox, FileIcon, IconButton, Loading, PageHeader } from '../components/ui';
+
+export default function Shares(){
+  const {data,loading,error,reload}=useResource<Share[]>('/shares',IDLE_INTERVAL);const {busy,run}=useAction();const [removing,setRemoving]=useState<Share|null>(null);
+  return<><PageHeader eyebrow="SHARED WITH A LINK" title="我的分享" description="管理分享链接、有效时间和提取码，随时撤销访问。" actions={<Button icon={RefreshCw} onClick={()=>void reload()}>刷新</Button>}/>{error&&<ErrorBox message={error} retry={()=>void reload()}/>}<Card>{loading&&!data?<Loading/>:!data?.length?<Empty icon={Share2} title="分享，从一个链接开始" description="在文件菜单中选择「分享」，创建带有效时间和提取码的私有文件链接。"/>:<div className="table-scroll"><table className="file-table"><thead><tr><th>文件</th><th>访问保护</th><th>有效期</th><th>已访问次数</th><th>操作</th></tr></thead><tbody>{data.map(share=><tr key={share.id}><td><div className="file-name"><FileIcon name={share.fileName}/><span>{share.fileName}</span></div></td><td>{share.hasPassword?<Badge color="purple"><LockKeyhole size={12}/>需要提取码</Badge>:<Badge><Link2 size={12}/>持链接访问</Badge>}</td><td><div className="share-expiry"><span>{dateTime(share.expiresAt)}</span><Badge color={share.expiresAt<Date.now()?'gray':'green'}>{share.expiresAt<Date.now()?'已过期':'有效'}</Badge></div></td><td>{share.downloads} / {share.maxDownloads||'不限'}</td><td><div className="row-actions"><IconButton icon={Copy} label="复制分享链接" onClick={()=>void run(()=>copyText(`${location.origin}/#/s/${share.id}`),'分享链接已复制')}/><IconButton icon={Trash2} label="撤销分享" onClick={()=>setRemoving(share)}/></div></td></tr>)}</tbody></table></div>}</Card>{removing&&<ConfirmModal title="撤销分享链接？" description="撤销后，接收者无法再通过分享页面获得下载链接；此前已经发放的短期签名最多还有 60 秒有效。" confirm="撤销分享" danger busy={busy} onClose={()=>setRemoving(null)} onConfirm={()=>void run(()=>api(`/shares/${removing.id}`,{method:'DELETE'}),'分享已撤销').then(result=>{if(result)setRemoving(null);})}/>}</>;
+}
