@@ -5,8 +5,6 @@ interface __BaseEnv_Env {
 	ASSETS: Fetcher;
 	DRIVE_ID: "staging" | "personal";
 	APP_NAME: "R2 Drive · Staging" | "R2 Drive";
-	ADMIN_USERNAME: string;
-	ADMIN_PASSWORD: string;
 	ENCRYPTION_KEY: string;
 	CATALOG: DurableObjectNamespace<import("./worker/index").DriveCatalog>;
 	JOBS: DurableObjectNamespace<import("./worker/index").BackgroundJob>;
@@ -20,8 +18,6 @@ declare namespace Cloudflare {
 		ASSETS: Fetcher;
 		DRIVE_ID: "staging";
 		APP_NAME: "R2 Drive · Staging";
-		ADMIN_USERNAME: string;
-		ADMIN_PASSWORD: string;
 		ENCRYPTION_KEY: string;
 		CATALOG: DurableObjectNamespace<import("./worker/index").DriveCatalog>;
 		JOBS: DurableObjectNamespace<import("./worker/index").BackgroundJob>;
@@ -33,7 +29,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "DRIVE_ID" | "APP_NAME" | "ADMIN_USERNAME" | "ADMIN_PASSWORD" | "ENCRYPTION_KEY">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "DRIVE_ID" | "APP_NAME" | "ENCRYPTION_KEY">> {}
 }
 declare module "*.txt" {
 	const value: string;

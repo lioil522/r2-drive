@@ -15,8 +15,14 @@ let cookie:string;
 let fetchSpy:ReturnType<typeof vi.spyOn>;
 const checksum=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
 
-beforeEach(async()=>{r2=new MockR2();fetchSpy=vi.spyOn(globalThis,'fetch').mockImplementation(r2.fetch);cookie=`r2_session=${await createSession(env)}`;});
+beforeEach(async()=>{r2=new MockR2();fetchSpy=vi.spyOn(globalThis,'fetch').mockImplementation(r2.fetch);cookie=await initAuth();});
 afterEach(async()=>{await reset();fetchSpy.mockRestore();});
+
+async function initAuth():Promise<string>{
+  const catalog=env.CATALOG.getByName(env.DRIVE_ID);
+  await runInDurableObject(catalog,(_instance,state)=>{state.storage.sql.exec('INSERT OR REPLACE INTO admin VALUES (1,?,?,?,?)','admin','test-password-hash','test-salt',Date.now());});
+  return `r2_session=${await createSession(env,'admin','test-password-hash')}`;
+}
 
 async function request(path:string,method='GET',body?:unknown,authenticated=true,headers?:HeadersInit):Promise<Response>{
   return worker.fetch(new Request(`${origin}/api${path}`,{method,headers:{...(authenticated?{Cookie:cookie}:{}),...(body!==undefined?{'Content-Type':'application/json',Origin:origin}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)}),env);
@@ -112,7 +118,7 @@ describe('cross-account files',()=>{
     const {catalog}=await setup([50_000,50_000,200_000]);
     const session=await start(new Uint8Array(80_000));expect(session.segments).toBeUndefined();
     expect(session.accountId).toBe((await catalog.getAccounts())[2].id);
-    await reset();r2.objects.clear();r2.multiparts.clear();const {catalog:pool}=await setup();
+    await reset();r2.objects.clear();r2.multiparts.clear();cookie=await initAuth();const {catalog:pool}=await setup();
     const oversized=await request('/uploads','POST',{path:'/too-large.bin',size:90_000,allowSplit:true});expect(oversized.status).toBe(409);
     expect((await pool.getAccounts()).every((account)=>account.reservedBytes===0)).toBe(true);
     const results=await Promise.all([request('/uploads','POST',{path:'/a/file.bin',size:80_000,allowSplit:true}),request('/uploads','POST',{path:'/b/file.bin',size:80_000,allowSplit:true})]);
@@ -250,7 +256,7 @@ describe('cross-account files',()=>{
     const copy=await (await request('/transfers','POST',{fileIds:[file.id],targetBucketId:buckets[0].id,mode:'copy'})).json() as Job;
     expect((await runJob(copy)).status).toBe('completed');expect((await catalog.getFile(file.id)).segments).toHaveLength(2);expect(r2.objects.size).toBe(3);
     expect((await catalog.getAccounts()).map((account)=>account.usedBytes)).toEqual([138_192,46_384]);
-    await reset();r2.objects.clear();r2.multiparts.clear();const {catalog:unfinished}=await setup();const pending=await start(body);await putParts(pending,body,[1]);
+    await reset();r2.objects.clear();r2.multiparts.clear();cookie=await initAuth();const {catalog:unfinished}=await setup();const pending=await start(body);await putParts(pending,body,[1]);
     await runInDurableObject(unfinished,async(instance,state)=>{const upload=JSON.parse(state.storage.sql.exec<{data:string}>('SELECT data FROM uploads WHERE id=?',pending.id).one().data) as UploadSession;upload.expiresAt=Date.now()-1;state.storage.sql.exec('UPDATE uploads SET expires_at=?,data=? WHERE id=?',upload.expiresAt,JSON.stringify(upload),upload.id);await instance.alarm();});
     const cleanup=(await unfinished.listJobs()).find((job)=>job.type==='upload-cleanup')!;expect((await runJob(cleanup)).status).toBe('completed');
     expect((await unfinished.getAccounts()).every((account)=>account.reservedBytes===0)).toBe(true);expect(r2.multiparts.size).toBe(0);

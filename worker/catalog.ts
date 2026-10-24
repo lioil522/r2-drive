@@ -53,6 +53,7 @@ export class DriveCatalog extends DurableObject<Env> {
         CREATE INDEX IF NOT EXISTS shares_file ON shares(file_id);
         CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, detail TEXT NOT NULL, created_at INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, expires_at INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS admin (id INTEGER PRIMARY KEY, username TEXT NOT NULL, password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, created_at INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);
         INSERT OR IGNORE INTO schema_version VALUES (1);
       `);
@@ -1164,6 +1165,31 @@ export class DriveCatalog extends DurableObject<Env> {
     if (!row || row.expires_at <= now) { this.ctx.storage.sql.exec('INSERT INTO rate_limits VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET count=1,expires_at=excluded.expires_at',key,now+windowMs); return true; }
     if (row.count >= limit) return false;
     this.ctx.storage.sql.exec('UPDATE rate_limits SET count=count+1 WHERE key=?',key); return true;
+  }
+
+  getAdminState(): { initialized: boolean; username: string } {
+    const row = this.ctx.storage.sql.exec<{username:string}>('SELECT username FROM admin WHERE id=1').toArray()[0];
+    return { initialized: Boolean(row), username: row?.username || '' };
+  }
+
+  getAdminCredentials(): { username: string; passwordHash: string } | null {
+    const row = this.ctx.storage.sql.exec<{username:string;password_hash:string}>('SELECT username,password_hash FROM admin WHERE id=1').toArray()[0];
+    return row ? { username: row.username, passwordHash: row.password_hash } : null;
+  }
+
+  async setupAdmin(username: string, password: string): Promise<void> {
+    assert(!this.getAdminState().initialized,'管理员已初始化',409);
+    const salt = crypto.randomUUID();
+    const passwordHash = await sha256(`${password}:${salt}`);
+    this.ctx.storage.sql.exec('INSERT INTO admin VALUES (1,?,?,?,?)',username,passwordHash,salt,Date.now());
+  }
+
+  async verifyAdmin(username: string, password: string): Promise<boolean> {
+    const row = this.ctx.storage.sql.exec<{username:string;password_hash:string;password_salt:string}>('SELECT username,password_hash,password_salt FROM admin WHERE id=1').toArray()[0];
+    if (!row) return false;
+    if (row.username !== username) return false;
+    const passwordHash = await sha256(`${password}:${row.password_salt}`);
+    return safeEqual(passwordHash, row.password_hash);
   }
 
   getAudit(): AuditEntry[] { return this.ctx.storage.sql.exec<{id:number;action:string;detail:string;created_at:number}>('SELECT * FROM audit ORDER BY id DESC LIMIT 200').toArray().map((row) => ({id:row.id,action:row.action,detail:row.detail,createdAt:row.created_at})); }

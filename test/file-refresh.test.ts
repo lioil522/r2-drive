@@ -9,7 +9,8 @@ import { MockR2 } from './mock-r2';
 
 const origin='https://drive.test';
 let storage:MockR2;let cookie:string;let fetchSpy:ReturnType<typeof vi.spyOn>;
-beforeEach(async()=>{storage=new MockR2();fetchSpy=vi.spyOn(globalThis,'fetch').mockImplementation(storage.fetch);cookie=`r2_session=${await createSession(env)}`;});
+const ADMIN_USERNAME='admin';const ADMIN_PASSWORD_HASH='test-password-hash';
+beforeEach(async()=>{storage=new MockR2();fetchSpy=vi.spyOn(globalThis,'fetch').mockImplementation(storage.fetch);const catalog=env.CATALOG.getByName(env.DRIVE_ID);await runInDurableObject(catalog,(_instance,state)=>{state.storage.sql.exec('INSERT OR REPLACE INTO admin VALUES (1,?,?,?,?)',ADMIN_USERNAME,ADMIN_PASSWORD_HASH,'test-salt',Date.now());});cookie=`r2_session=${await createSession(env,ADMIN_USERNAME,ADMIN_PASSWORD_HASH)}`;});
 afterEach(async()=>{await reset();fetchSpy.mockRestore();});
 
 async function request(path:string,method='GET',body?:unknown,authenticated=true){

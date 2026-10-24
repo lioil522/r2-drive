@@ -15,7 +15,7 @@ import PublicShare from './pages/PublicShare';
 import AccountForm from './components/AccountForm';
 import UploadDialog from './components/UploadDialog';
 
-interface SessionInfo { authenticated: boolean; configured: boolean; appName: string; username: string }
+interface SessionInfo { authenticated: boolean; secretReady: boolean; initialized: boolean; appName: string; username: string }
 interface ToastItem { id: string; message: string; type: 'success' | 'error' | 'info' }
 
 const groups: { label: string; items: { id: string; label: string; icon: LucideIcon }[] }[] = [
@@ -55,7 +55,7 @@ export default function App() {
   const share = /^s\/([^/?]+)/.exec(route);
   if (share) return <PublicShare id={share[1]}/>;
   if (!session) return <BootScreen message={sessionError || undefined}/>;
-  if (!session.authenticated) return <Login configured={session.configured} appName={session.appName} onLogin={loadSession}/>;
+  if (!session.authenticated) return <Login secretReady={session.secretReady} initialized={session.initialized} appName={session.appName} onLogin={loadSession}/>;
   return <Shell route={route} session={session} onLogout={loadSession} dark={dark} onToggleDark={() => setDark((value) => !value)}/>;
 }
 

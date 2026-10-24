@@ -20,8 +20,10 @@
 ```bash
 npm install
 cp .dev.vars.example .dev.vars
-# 编辑 .dev.vars，填入 ADMIN_PASSWORD 与至少 32 字符的 ENCRYPTION_KEY
+# 编辑 .dev.vars，填入至少 32 字符的 ENCRYPTION_KEY
 ```
+
+启动后首次打开网站会进入初始化引导页，设置管理员用户名和密码。
 
 开两个终端：
 
@@ -76,12 +78,13 @@ API 客户端需在 `POST /api/uploads` 中明确传入 `allowSplit: true`。`GE
 ```bash
 npm run types          # 绑定变化后重新生成 worker-configuration.d.ts
 npm run build
-npx wrangler secret put ADMIN_PASSWORD
 npx wrangler secret put ENCRYPTION_KEY
 npm run deploy
 ```
 
-登录需要**管理员用户名 + 密码**。用户名默认为 `admin`，通过 `wrangler.jsonc` 的 `vars.ADMIN_USERNAME` 配置（普通环境变量，非 secret）；如需自定义，改 `wrangler.jsonc` 后重新部署即可。
+首次部署后，打开网站会进入**初始化引导页**，在那里设置**管理员用户名 + 密码**（存于 Durable Object 数据库，密码仅存哈希）。之后用这套账号登录即可。
+
+> `ENCRYPTION_KEY` 是加密 R2 账号凭据的根密钥（Secret，至少 32 字符），生成后请妥善保存、切勿更改；更改会导致已保存的账号凭据无法解密。
 
 首次部署会创建 `DriveCatalog` / `BackgroundJob` 两个 SQLite Durable Object（迁移 `v1`）。`wrangler.jsonc` 已配置 SPA 路由：静态资源走 Assets，`/api/*` 先交给 Worker。
 
@@ -95,7 +98,6 @@ npm run deploy
 
 ```bash
 npx wrangler deploy --env staging
-npx wrangler secret put ADMIN_PASSWORD --env staging
 npx wrangler secret put ENCRYPTION_KEY --env staging
 ```
 

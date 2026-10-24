@@ -7,7 +7,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { DriveCatalog } from './catalog';
 import { BackgroundJob } from './jobs';
 import { AppError, assert, errorMessage, errorStatus, readBounded } from './errors';
-import { createFileToken, createSession, isAuthenticated, safeEqual, sessionCookie, verifyFileToken } from './crypto';
+import { createFileToken, createSession, isAuthenticated, sessionCookie, verifyFileToken } from './crypto';
 import { fileResponse } from './content';
 import { accountPatchSchema, accountSchema, body, bucketNameSchema, jurisdictionSchema, metadataSchema, pathSchema, transferSchema, uploadSchema } from './schemas';
 import { cfApi, fromHead, head, listParts, s3, s3Metadata, testBucket } from './r2';
@@ -26,7 +26,7 @@ function json(value: unknown, status = 200, headers?: HeadersInit): Response {
 }
 
 function configured(env: Env): boolean {
-  return Boolean(env.ADMIN_PASSWORD?.length>=12 && !env.ADMIN_PASSWORD.startsWith('replace-') && env.ENCRYPTION_KEY?.length>=32 && !env.ENCRYPTION_KEY.startsWith('replace-'));
+  return Boolean(env.ENCRYPTION_KEY?.length>=32 && !env.ENCRYPTION_KEY.startsWith('replace-'));
 }
 
 const LOOPBACK_HOSTS=['localhost','127.0.0.1','::1'];
@@ -153,13 +153,29 @@ async function api(request: Request, env: Env): Promise<Response> {
     assert(sameOrigin(request,url),'请求来源不正确',403);
     assert(request.headers.get('Content-Type')?.includes('application/json') || method==='DELETE','请发送 application/json 请求',415);
   }
-  if (path==='/api/session' && method==='GET') return json({authenticated:await isAuthenticated(request,env),configured:configured(env),appName:env.APP_NAME,username:env.ADMIN_USERNAME || 'admin'});
+  if (path==='/api/session' && method==='GET') {
+    const admin = await catalog.getAdminState();
+    const auth = await isAuthenticated(request, env, (await catalog.getAdminCredentials())?.passwordHash);
+    return json({ authenticated: auth, secretReady: configured(env), initialized: admin.initialized, appName: env.APP_NAME, username: admin.username });
+  }
+  if (path==='/api/setup' && method==='POST') {
+    assert(configured(env),'请先在 Cloudflare 控制台设置 ENCRYPTION_KEY（Secret，至少 32 个字符）',503);
+    const input = await body(request, z.object({ username: z.string().min(1).max(100), password: z.string().min(12).max(1000) }));
+    assert(await catalog.rateLimit(`setup:${request.headers.get('CF-Connecting-IP') || 'local'}`,10,15*60*1000),'操作过于频繁，请 15 分钟后重试',429);
+    await catalog.setupAdmin(input.username.trim(), input.password);
+    const cred = await catalog.getAdminCredentials();
+    assert(cred,'管理员初始化失败',500);
+    return json({ ok: true, username: cred.username }, 200, { 'Set-Cookie': sessionCookie(request, await createSession(env, cred.username, cred.passwordHash)) });
+  }
   if (path==='/api/login' && method==='POST') {
-    assert(configured(env),'请先设置 ADMIN_PASSWORD（至少 12 个字符）和 ENCRYPTION_KEY（至少 32 个字符）',503);
+    assert(configured(env),'请先在 Cloudflare 控制台设置 ENCRYPTION_KEY（Secret，至少 32 个字符）',503);
+    assert((await catalog.getAdminState()).initialized,'管理员尚未初始化，请先完成初始化设置',409);
     const input=await body(request,z.object({username:z.string().max(100),password:z.string().max(1000)}));
     assert(await catalog.rateLimit(`login:${request.headers.get('CF-Connecting-IP') || 'local'}`,15,15*60*1000),'登录尝试过多，请 15 分钟后重试',429);
-    assert(await safeEqual(input.username,env.ADMIN_USERNAME || 'admin') && await safeEqual(input.password,env.ADMIN_PASSWORD),'用户名或密码不正确',401);
-    return json({ok:true,username:env.ADMIN_USERNAME || 'admin'},200,{'Set-Cookie':sessionCookie(request,await createSession(env))});
+    assert(await catalog.verifyAdmin(input.username.trim(), input.password),'用户名或密码不正确',401);
+    const cred = await catalog.getAdminCredentials();
+    assert(cred,'管理员数据缺失',500);
+    return json({ok:true,username:cred.username},200,{'Set-Cookie':sessionCookie(request,await createSession(env,cred.username,cred.passwordHash))});
   }
   if (path==='/api/logout' && method==='POST') return json({ok:true},200,{'Set-Cookie':sessionCookie(request,'',0)});
   const publicShare=path.match(/^\/api\/public\/shares\/([^/]+)(?:\/(download))?$/);
@@ -174,7 +190,7 @@ async function api(request: Request, env: Env): Promise<Response> {
   const contentRoute=path.match(/^\/api\/files\/([^/]+)\/content$/);
   if (contentRoute && ['GET','HEAD'].includes(method)) {
     if (!url.searchParams.has('token')) {
-      assert(await isAuthenticated(request,env),'请先登录网盘',401);
+      assert(await isAuthenticated(request,env,(await catalog.getAdminCredentials())?.passwordHash),'请先登录网盘',401);
       return fileResponse(request,await catalog.getDownloadFile(contentRoute[1]),catalog,url.searchParams.get('preview')==='1');
     }
     const token=await verifyFileToken(env,url.searchParams.get('token') || '');
@@ -182,7 +198,7 @@ async function api(request: Request, env: Env): Promise<Response> {
     const file=await catalog.getDownloadFile(token.fileId,token.shareId);assert(file.etag===token.etag,'文件已发生变化，请重新获取下载链接',409);
     return fileResponse(request,file,catalog,token.preview);
   }
-  assert(await isAuthenticated(request,env),'请先登录网盘',401);
+  assert(await isAuthenticated(request,env,(await catalog.getAdminCredentials())?.passwordHash),'请先登录网盘',401);
   if (method==='GET') {
     if (path==='/api/status') return json(await catalog.status());
     if (path==='/api/dashboard') return json(await catalog.dashboard());

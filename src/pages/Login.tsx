@@ -3,18 +3,26 @@ import { ArrowRight, Cloud, LockKeyhole, ShieldCheck, Sparkles } from 'lucide-re
 import { api } from '../api';
 import { Button, Logo, Notice } from '../components/ui';
 
-export default function Login({ configured, appName, onLogin }: { configured: boolean; appName: string; onLogin: () => void }) {
+export default function Login({ secretReady, initialized, appName, onLogin }: { secretReady: boolean; initialized: boolean; appName: string; onLogin: () => void }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const setup = !initialized;
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (setup && password !== confirm) { setError('两次输入的密码不一致'); return; }
     setBusy(true); setError('');
-    try { await api('/login', { method: 'POST', body: { username, password } }); onLogin(); }
-    catch (failure) { setError(failure instanceof Error ? failure.message : '登录失败'); }
+    try {
+      if (setup) await api('/setup', { method: 'POST', body: { username, password } });
+      else await api('/login', { method: 'POST', body: { username, password } });
+      onLogin();
+    } catch (failure) { setError(failure instanceof Error ? failure.message : (setup ? '初始化失败' : '登录失败')); }
     finally { setBusy(false); }
   };
+
   return <div className="login-shell">
     <div className="login-aside">
       <Logo/>
@@ -28,10 +36,19 @@ export default function Login({ configured, appName, onLogin }: { configured: bo
     </div>
     <div className="login-panel">
       <div className="login-card">
-        <div className="login-card-head"><span className="login-badge"><LockKeyhole size={14}/>管理入口</span><h2>欢迎回来</h2><p>输入管理员密码，进入你的多账号网盘。</p></div>
-        {!configured&&<Notice type="warning"><strong>服务还没有完成初始化。</strong> 请先在项目目录设置两个 secret，然后刷新此页：<code className="inline-code">ADMIN_PASSWORD</code>（至少 12 个字符）和 <code className="inline-code">ENCRYPTION_KEY</code>（至少 32 个字符）。<pre className="code-block">npx wrangler secret put ADMIN_PASSWORD{'\n'}npx wrangler secret put ENCRYPTION_KEY</pre></Notice>}
-        {error&&<div className="error-box"><span>{error}</span></div>}
-        <form className="login-form" onSubmit={(event) => void submit(event)}><label className="field"><span>管理员用户名</span><input type="text" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="输入管理员用户名" autoComplete="username" autoFocus required disabled={!configured}/></label><label className="field"><span>管理员密码</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="输入密码" autoComplete="current-password" required disabled={!configured}/></label><Button type="submit" variant="primary" busy={busy} disabled={!configured||!username||!password} className="login-submit">进入网盘 <ArrowRight size={16}/></Button></form>
+        {!secretReady ? <>
+          <div className="login-card-head"><span className="login-badge"><LockKeyhole size={14}/>尚未配置密钥</span><h2>还差最后一步</h2><p>需要先在 Cloudflare 控制台设置加密密钥，然后刷新此页。</p></div>
+          <Notice type="warning"><strong>服务还没有完成初始化。</strong> 请在 Cloudflare 控制台的 <strong>Workers &amp; Pages → {appName} → Settings → Variables and Secrets</strong> 中添加一个 <strong>Secret</strong>：<code className="inline-code">ENCRYPTION_KEY</code>（至少 32 个字符）。它是用于加密 R2 账号凭据的根密钥，请保存好，后续不要更改。</Notice>
+        </> : <>
+          <div className="login-card-head"><span className="login-badge"><LockKeyhole size={14}/>{setup ? '初始化' : '管理入口'}</span><h2>{setup ? '创建管理员账号' : '欢迎回来'}</h2><p>{setup ? '设置管理员用户名和密码，完成网盘初始化。' : '输入管理员账号，进入你的多账号网盘。'}</p></div>
+          {error && <div className="error-box"><span>{error}</span></div>}
+          <form className="login-form" onSubmit={(event) => void submit(event)}>
+            <label className="field"><span>管理员用户名</span><input type="text" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="设置用户名" autoComplete="username" autoFocus required disabled={busy}/></label>
+            <label className="field"><span>管理员密码</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder={setup ? '设置密码（至少 12 个字符）' : '输入密码'} autoComplete={setup ? 'new-password' : 'current-password'} required disabled={busy}/></label>
+            {setup && <label className="field"><span>确认密码</span><input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} placeholder="再次输入密码" autoComplete="new-password" required disabled={busy}/></label>}
+            <Button type="submit" variant="primary" busy={busy} disabled={!username || !password || (setup && !confirm)} className="login-submit">{setup ? '完成初始化' : '进入网盘'} <ArrowRight size={16}/></Button>
+          </form>
+        </>}
       </div>
     </div>
   </div>;
