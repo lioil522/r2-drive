@@ -1,4 +1,6 @@
 # Copy this file to .dev.vars, and replace BOTH values before starting the API.
 # Set these as Cloudflare Worker secrets for deployment (see README.md).
+# 管理员用户名默认为 "admin"（在 wrangler.jsonc 的 vars.ADMIN_USERNAME 中配置），
+# 如需自定义用户名，在下方添加 ADMIN_USERNAME=yourname。
 ADMIN_PASSWORD=replace-with-your-own-long-password
 ENCRYPTION_KEY=replace-with-a-random-secret-at-least-32-characters-long

@@ -13,7 +13,8 @@
   },
   "vars": {
     "DRIVE_ID": "personal",
-    "APP_NAME": "R2 Drive"
+    "APP_NAME": "R2 Drive",
+    "ADMIN_USERNAME": "admin"
   },
   "durable_objects": {
     "bindings": [
@@ -31,7 +32,7 @@
   "env": {
     "staging": {
       "name": "r2-drive-staging",
-      "vars": { "DRIVE_ID": "staging", "APP_NAME": "R2 Drive · Staging" },
+      "vars": { "DRIVE_ID": "staging", "APP_NAME": "R2 Drive · Staging", "ADMIN_USERNAME": "admin" },
       "durable_objects": {
         "bindings": [
           { "name": "CATALOG", "class_name": "DriveCatalog" },

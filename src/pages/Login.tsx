@@ -4,13 +4,14 @@ import { api } from '../api';
 import { Button, Logo, Notice } from '../components/ui';
 
 export default function Login({ configured, appName, onLogin }: { configured: boolean; appName: string; onLogin: () => void }) {
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true); setError('');
-    try { await api('/login', { method: 'POST', body: { password } }); onLogin(); }
+    try { await api('/login', { method: 'POST', body: { username, password } }); onLogin(); }
     catch (failure) { setError(failure instanceof Error ? failure.message : '登录失败'); }
     finally { setBusy(false); }
   };
@@ -30,8 +31,7 @@ export default function Login({ configured, appName, onLogin }: { configured: bo
         <div className="login-card-head"><span className="login-badge"><LockKeyhole size={14}/>管理入口</span><h2>欢迎回来</h2><p>输入管理员密码，进入你的多账号网盘。</p></div>
         {!configured&&<Notice type="warning"><strong>服务还没有完成初始化。</strong> 请先在项目目录设置两个 secret，然后刷新此页：<code className="inline-code">ADMIN_PASSWORD</code>（至少 12 个字符）和 <code className="inline-code">ENCRYPTION_KEY</code>（至少 32 个字符）。<pre className="code-block">npx wrangler secret put ADMIN_PASSWORD{'\n'}npx wrangler secret put ENCRYPTION_KEY</pre></Notice>}
         {error&&<div className="error-box"><span>{error}</span></div>}
-        <form className="login-form" onSubmit={(event) => void submit(event)}><label className="field"><span>管理员密码</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="输入 ADMIN_PASSWORD" autoComplete="current-password" autoFocus required disabled={!configured}/></label><Button type="submit" variant="primary" busy={busy} disabled={!configured||!password} className="login-submit">进入网盘 <ArrowRight size={16}/></Button></form>
-        <p className="login-hint">密码与加密密钥只保存在 Cloudflare Secret 中。忘记密码时，重新执行 <code className="inline-code">npx wrangler secret put ADMIN_PASSWORD</code> 即可覆盖。</p>
+        <form className="login-form" onSubmit={(event) => void submit(event)}><label className="field"><span>管理员用户名</span><input type="text" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="输入管理员用户名" autoComplete="username" autoFocus required disabled={!configured}/></label><label className="field"><span>管理员密码</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="输入密码" autoComplete="current-password" required disabled={!configured}/></label><Button type="submit" variant="primary" busy={busy} disabled={!configured||!username||!password} className="login-submit">进入网盘 <ArrowRight size={16}/></Button></form>
       </div>
     </div>
   </div>;

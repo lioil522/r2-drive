@@ -48,7 +48,7 @@ async function hmacKey(secret: string): Promise<CryptoKey> {
 }
 
 export async function createSession(env: Env): Promise<string> {
-  const payload = toBase64(encoder.encode(JSON.stringify({ expires: Date.now() + 7 * 24 * 60 * 60 * 1000, nonce: crypto.randomUUID(), passwordVersion: await sha256(env.ADMIN_PASSWORD) })));
+  const payload = toBase64(encoder.encode(JSON.stringify({ expires: Date.now() + 7 * 24 * 60 * 60 * 1000, nonce: crypto.randomUUID(), passwordVersion: await sha256(env.ADMIN_PASSWORD), usernameVersion: await sha256(env.ADMIN_USERNAME || 'admin') })));
   const signature = await crypto.subtle.sign('HMAC', await hmacKey(env.ENCRYPTION_KEY), encoder.encode(payload));
   return `${payload}.${toBase64(new Uint8Array(signature))}`;
 }
@@ -61,8 +61,11 @@ export async function isAuthenticated(request: Request, env: Env): Promise<boole
     const [payload, signature] = session.split('.');
     if (!payload || !signature) return false;
     if (!await crypto.subtle.verify('HMAC', await hmacKey(env.ENCRYPTION_KEY), fromBase64(signature), encoder.encode(payload))) return false;
-    const data = JSON.parse(new TextDecoder().decode(fromBase64(payload))) as { expires: number; passwordVersion: string };
-    return data.expires > Date.now() && await safeEqual(data.passwordVersion, await sha256(env.ADMIN_PASSWORD));
+    const data = JSON.parse(new TextDecoder().decode(fromBase64(payload))) as { expires: number; passwordVersion: string; usernameVersion?: string };
+    const passwordOk = data.expires > Date.now() && await safeEqual(data.passwordVersion, await sha256(env.ADMIN_PASSWORD));
+    if (!passwordOk) return false;
+    if (data.usernameVersion) return await safeEqual(data.usernameVersion, await sha256(env.ADMIN_USERNAME || 'admin'));
+    return true;
   } catch {
     return false;
   }

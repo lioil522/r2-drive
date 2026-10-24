@@ -153,13 +153,13 @@ async function api(request: Request, env: Env): Promise<Response> {
     assert(sameOrigin(request,url),'请求来源不正确',403);
     assert(request.headers.get('Content-Type')?.includes('application/json') || method==='DELETE','请发送 application/json 请求',415);
   }
-  if (path==='/api/session' && method==='GET') return json({authenticated:await isAuthenticated(request,env),configured:configured(env),appName:env.APP_NAME});
+  if (path==='/api/session' && method==='GET') return json({authenticated:await isAuthenticated(request,env),configured:configured(env),appName:env.APP_NAME,username:env.ADMIN_USERNAME || 'admin'});
   if (path==='/api/login' && method==='POST') {
     assert(configured(env),'请先设置 ADMIN_PASSWORD（至少 12 个字符）和 ENCRYPTION_KEY（至少 32 个字符）',503);
-    const input=await body(request,z.object({password:z.string().max(1000)}));
+    const input=await body(request,z.object({username:z.string().max(100),password:z.string().max(1000)}));
     assert(await catalog.rateLimit(`login:${request.headers.get('CF-Connecting-IP') || 'local'}`,15,15*60*1000),'登录尝试过多，请 15 分钟后重试',429);
-    assert(await safeEqual(input.password,env.ADMIN_PASSWORD),'密码不正确',401);
-    return json({ok:true},200,{'Set-Cookie':sessionCookie(request,await createSession(env))});
+    assert(await safeEqual(input.username,env.ADMIN_USERNAME || 'admin') && await safeEqual(input.password,env.ADMIN_PASSWORD),'用户名或密码不正确',401);
+    return json({ok:true,username:env.ADMIN_USERNAME || 'admin'},200,{'Set-Cookie':sessionCookie(request,await createSession(env))});
   }
   if (path==='/api/logout' && method==='POST') return json({ok:true},200,{'Set-Cookie':sessionCookie(request,'',0)});
   const publicShare=path.match(/^\/api\/public\/shares\/([^/]+)(?:\/(download))?$/);

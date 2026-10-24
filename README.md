@@ -81,6 +81,8 @@ npx wrangler secret put ENCRYPTION_KEY
 npm run deploy
 ```
 
+登录需要**管理员用户名 + 密码**。用户名默认为 `admin`，通过 `wrangler.jsonc` 的 `vars.ADMIN_USERNAME` 配置（普通环境变量，非 secret）；如需自定义，改 `wrangler.jsonc` 后重新部署即可。
+
 首次部署会创建 `DriveCatalog` / `BackgroundJob` 两个 SQLite Durable Object（迁移 `v1`）。`wrangler.jsonc` 已配置 SPA 路由：静态资源走 Assets，`/api/*` 先交给 Worker。
 
 部署前检查：

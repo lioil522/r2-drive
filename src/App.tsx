@@ -15,7 +15,7 @@ import PublicShare from './pages/PublicShare';
 import AccountForm from './components/AccountForm';
 import UploadDialog from './components/UploadDialog';
 
-interface SessionInfo { authenticated: boolean; configured: boolean; appName: string }
+interface SessionInfo { authenticated: boolean; configured: boolean; appName: string; username: string }
 interface ToastItem { id: string; message: string; type: 'success' | 'error' | 'info' }
 
 const groups: { label: string; items: { id: string; label: string; icon: LucideIcon }[] }[] = [
@@ -96,7 +96,7 @@ function Shell({ route, session, onLogout, dark, onToggleDark }: { route: string
         <aside className={`app-sidebar ${navOpen ? 'open' : ''}`}>
           <div className="sidebar-head"><button className="sidebar-brand" onClick={() => go('overview')}><Logo/></button><IconButton icon={X} label="关闭菜单" className="sidebar-close" onClick={() => setNavOpen(false)}/></div>
           <nav className="sidebar-nav">{groups.map((group) => <div className="nav-group" key={group.label}><span className="nav-label">{group.label}</span>{group.items.map(({ id, label, icon: Icon }) => <button key={id} className={`nav-link ${activeKey === id || (id !== 'overview' && pathname.startsWith(`${id}/`)) ? 'active' : ''}`} onClick={() => go(id)}><Icon size={18}/><span>{label}</span></button>)}</div>)}</nav>
-          <div className="sidebar-foot"><button type="button" className="theme-toggle" onClick={onToggleDark} aria-label={dark ? '切换到浅色模式' : '切换到暗色模式'}>{dark ? <Sun size={16}/> : <Moon size={16}/>}<span>{dark ? '浅色模式' : '暗色模式'}</span></button><div className="user-chip"><span><ShieldCheck size={17}/></span><div><strong>本地管理员</strong><small>{session.appName}</small></div><IconButton icon={LogOut} label="退出登录" onClick={() => void logout()}/></div><p>凭据加密 · 文件私有</p></div>
+          <div className="sidebar-foot"><button type="button" className="theme-toggle" onClick={onToggleDark} aria-label={dark ? '切换到浅色模式' : '切换到暗色模式'}>{dark ? <Sun size={16}/> : <Moon size={16}/>}<span>{dark ? '浅色模式' : '暗色模式'}</span></button><div className="user-chip"><span><ShieldCheck size={17}/></span><div><strong>{session.username || '管理员'}</strong><small>{session.appName}</small></div><IconButton icon={LogOut} label="退出登录" onClick={() => void logout()}/></div><p>凭据加密 · 文件私有</p></div>
         </aside>
         {navOpen&&<div className="sidebar-overlay" onClick={() => setNavOpen(false)}/>}
         <div className="app-content">
